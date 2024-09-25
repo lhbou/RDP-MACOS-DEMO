@@ -1,20 +1,40 @@
-name: macOS
-on: 
+name: Deploy RDP via Ngrok
+
+on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-defaults:
-  run:
-    shell: bash
 
 jobs:
-  build:
+  deploy_rdp:
     runs-on: macos-latest
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Setting the Environment Up.
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install Ngrok
+      run: |
+        brew install --cask ngrok
+
+    - name: Configure macOS Remote Desktop (Screen Sharing)
+      run: |
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+        -activate -configure -access -on -users "$USER" -privs -all \
+        -restart -agent -menu
+
+    - name: Start Ngrok tunnel for RDP (port 3389)
       env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      run: source setup.sh "Alone215" "Alone215" "$NGROK_AUTH_TOKEN"
-    - name: ngrok is now listening to VNC connections on...
-      run: curl --silent http://127.0.0.1:4040/api/tunnels | jq '.tunnels[0].public_url'
-    - name: Setup tmate Session
-      uses: mxschmitt/action-tmate@v2
+        NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+      run: |
+        ngrok authtoken $NGROK_TOKEN
+        ngrok tcp 3389 > ngrok_output.log &
+        sleep 5
+        cat ngrok_output.log
+
+    - name: Display Ngrok tunnel URL
+      run: |
+        TUNNEL_URL=$(grep -o "tcp://[0-9a-z\.]*:[0-9]*" ngrok_output.log)
+        echo "Ngrok tunnel is ready: $TUNNEL_URL"
+        echo "::set-output name=ngrok_url::$TUNNEL_URL"
