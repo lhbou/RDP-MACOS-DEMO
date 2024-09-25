@@ -18,23 +18,40 @@ jobs:
       run: |
         brew install --cask ngrok
 
-    - name: Configure macOS Remote Desktop (Screen Sharing)
+    # Activation de l'accès à distance avec Remote Management ou Screen Sharing
+    - name: Enable Remote Management (Screen Sharing)
       run: |
+        # Activer le contrôle à distance pour l'utilisateur courant
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-        -activate -configure -access -on -users "$USER" -privs -all \
-        -restart -agent -menu
+        -activate -configure -access -on -users "$USER" -privs -all -restart -agent -menu
 
+        # Vérifier que Remote Management est activé correctement
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+        -status
+
+    # Démarrage du tunnel Ngrok sur le port RDP (3389)
     - name: Start Ngrok tunnel for RDP (port 3389)
       env:
         NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
       run: |
+        # Authentification Ngrok avec le token
         ngrok authtoken $NGROK_TOKEN
+        
+        # Démarrer un tunnel TCP sur le port RDP (3389) et sauvegarder la sortie
         ngrok tcp 3389 > ngrok_output.log &
         sleep 5
+        
+        # Afficher l'URL du tunnel Ngrok
         cat ngrok_output.log
 
+    # Extraire et afficher l'URL du tunnel Ngrok
     - name: Display Ngrok tunnel URL
       run: |
         TUNNEL_URL=$(grep -o "tcp://[0-9a-z\.]*:[0-9]*" ngrok_output.log)
         echo "Ngrok tunnel is ready: $TUNNEL_URL"
         echo "::set-output name=ngrok_url::$TUNNEL_URL"
+
+    # Ajout d'une étape pour enregistrer l'URL du tunnel dans les logs GitHub
+    - name: Print Ngrok URL in the logs
+      run: |
+        echo "Access your macOS via RDP at: ${{ steps.Display_Ngrok_tunnel_URL.outputs.ngrok_url }}"
